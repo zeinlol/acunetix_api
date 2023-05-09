@@ -89,7 +89,8 @@ class AcunetixAPI:
         if resp.status_code == 204:
             timed_print('User profile changed successfully. The current language is: English.')
         else:
-            timed_print('User profile settings have not been changed. Something went wrong.')
+            timed_print('User profile settings have not been changed. Something went wrong.\n'
+                        f'Info: {resp.text} Status code: {resp.status_code}. Content: {resp.content}')
             exit(1)
 
     def __get_request(self, path: str) -> requests.Response:
@@ -198,7 +199,7 @@ class AcunetixAPI:
         if resp.status_code == 204:
             timed_print('Proxy settings changed successfully.')
         else:
-            timed_print('Proxy settings have not been changed. Something went wrong.')
+            timed_print(f'Proxy settings have not been changed. Something went wrong. {resp.text}')
             exit(1)
 
     def test_connection(self) -> NoReturn:
