@@ -1,0 +1,1 @@
+from .print_output import timed_print
