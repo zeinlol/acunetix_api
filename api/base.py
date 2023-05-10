@@ -1,75 +1,22 @@
-import hashlib
 import json
 from typing import NoReturn
 
 import requests
-import urllib3
 
-from tools import timed_print
+from api.classes.target import AcunetixTarget
+from api.core import AcunetixCoreAPI
+from core.tools import timed_print
 
 
-class AcunetixAPI:
+class AcunetixAPI(AcunetixCoreAPI):
 
     def __init__(self, username: str, password: str, host: str, port: int, secure: bool):
-        self.username = username
-        self.password = password
-        self.host = host
-        self.port = port
-        self.secure = secure
-        self.s = self.__init_session()
+        super().__init__(username=username, password=password, host=host, port=port, secure=secure)
         self.test_connection()
-        self.__login()
-        self.__update_profile()
+        self._login()
+        self.update_profile()
 
-    @property
-    def is_logged(self) -> bool:
-        return self.__get_request('me').status_code == 200
-
-    @property
-    def api_url(self) -> str:
-        return f'https://{self.host}:{self.port}/api/v1/'
-
-    @property
-    def hash_password(self) -> str:
-        return hashlib.sha256(self.password.encode()).hexdigest()
-
-    @property
-    def auth_data(self) -> str:
-        auth_data = {
-            'email': self.username,
-            'password': self.hash_password,
-            'remember_me': True,
-            'logout_previous': True,
-        }
-        return json.dumps(auth_data)
-
-    def __init_session(self) -> requests.Session:
-        urllib3.disable_warnings()
-        session = requests.Session()
-        session.verify = self.secure
-        return session
-
-    def __login(self) -> NoReturn:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:85.0) Gecko/20100101 Firefox/85.0',
-            'Accept': "application/json, text/plain, */*",
-            'Accept-Language': "es-AR,es;q=0.8,en-US;q=0.5,en;q=0.3",
-            'Accept-Encoding': "gzip, deflate, br",
-            'Connection': "keep-alive",
-            'Content-type': 'application/json',
-            'cache-control': "no-cache",
-        }
-        self.__update_session(headers=headers)
-        resp = self.__post_request(path='me/login', data=self.auth_data)
-        self.__update_session(headers=resp.headers, cookies=resp.cookies)
-
-    def __update_session(self, headers=None, cookies=None) -> NoReturn:
-        if headers:
-            self.s.headers.update(headers)
-        if cookies:
-            self.s.cookies.update(cookies)
-
-    def __update_profile(self) -> NoReturn:
+    def update_profile(self) -> NoReturn:
         user_data = {
             'company': 'Example',
             'first_name': 'Administrator',
@@ -85,7 +32,7 @@ class AcunetixAPI:
                 }
         }
         data = json.dumps(user_data)
-        resp = self.__patch_request(path='me', data=data)
+        resp = self._patch_request(path='me', data=data)
         if resp.status_code == 204:
             timed_print('User profile changed successfully. The current language is: English.')
         else:
@@ -93,22 +40,11 @@ class AcunetixAPI:
                         f'Info: {resp.text} Status code: {resp.status_code}. Content: {resp.content}')
             exit(1)
 
-    def __get_request(self, path: str) -> requests.Response:
-        return self.s.get(f'{self.api_url}{path}')
-
-    def __post_request(self, path: str, data) -> requests.Response:
-        return self.s.post(f'{self.api_url}{path}', data=data)
-
-    def __patch_request(self, path: str, data) -> requests.Response:
-        return self.s.patch(f'{self.api_url}{path}', data=data)
-
-    def create_target(self, address, **kwargs) -> requests.Response:  # todo check valid?
-        """Starts the scanning process.
-
+    def create_target(self, address, **kwargs) -> AcunetixTarget:  # todo check valid?
+        """Create target for scanning process.
         Args:
             address: The target address [url, domain, etc.].
             kwargs: The target additional information.
-
         """
 
         target_data = {
@@ -118,7 +54,25 @@ class AcunetixAPI:
             'criticality': kwargs.get('criticality') or 10  # integer
         }
         data = json.dumps(target_data)
-        return self.__post_request(path='targets', data=data)
+        request = self._post_request(path='targets', data=data)
+        if request.status_code != 201:
+            timed_print(f'Fail to create target for the address: {address}.\n'
+                        f'Info: {request.text} Status code: {request.status_code}. Content: {request.content}'
+                        f'\nExit')
+            exit(1)
+        target_json = request.json()
+        target = AcunetixTarget(
+            address=target_json['address'],
+            fqdn=target_json['fqdn'],
+            domain=target_json['domain'],
+            general_type=target_json.get('type', 'default') or 'default',  # can be None
+            target_type=target_json.get('target_type', 'default') or 'default',  # can be None
+            target_id=target_json['target_id'],
+            description=target_json.get('description', ''),
+            criticality=target_json.get('criticality', 10),
+        )
+        timed_print(f'Target {target} for the address: {address} has been successfully created.')
+        return target
 
     def run_scan(self, target_id: str, profile_id: str = None, **kwargs) -> requests.Response:
         """Starts the scanning process.
@@ -130,11 +84,11 @@ class AcunetixAPI:
                     http://wp.blkstone.me/wp-content/uploads/2019/11/Acunetix-API-Documentation.html#get-scans
 
         """
-
+        template_id = kwargs.get('report_template_id') or '11111111-1111-1111-1111-111111111126'  # Comprehensive (new)
         scan_data = {
             'target_id': target_id,
             'profile_id': profile_id or '11111111-1111-1111-1111-111111111111',  # Full Scan
-            'report_template_id': kwargs.get('report_template_id') or '11111111-1111-1111-1111-111111111126',  # Comprehensive (new)
+            'report_template_id': template_id,
             'schedule': {
                 'disable': kwargs.get('disable') or False,
                 'start_date': kwargs.get('start_date'),  # can be None
@@ -142,13 +96,13 @@ class AcunetixAPI:
             }
         }
         data = json.dumps(scan_data)
-        return self.__post_request(path='scans', data=data)
+        return self._post_request(path='scans', data=data)
 
     def get_scans(self) -> requests.Response:
         """Get all available scans..
         """
 
-        return self.__get_request('scans')
+        return self._get_request('scans')
 
     def get_scan(self, scan_id: str) -> requests.Response:
         """Get a specific scan.
@@ -158,13 +112,13 @@ class AcunetixAPI:
 
         """
 
-        return self.__get_request(f'scans/{scan_id}')
+        return self._get_request(f'scans/{scan_id}')
 
     def get_reports(self) -> requests.Response:
         """Get all available reports..
         """
 
-        return self.__get_request('reports')
+        return self._get_request('reports')
 
     def download_report(self, descriptor: str) -> requests.Response:
         """Configures proxy settings for a target.
@@ -173,51 +127,4 @@ class AcunetixAPI:
             descriptor: The report identifier.
 
         """
-        return self.__get_request(path=f'reports/download/{descriptor}')
-
-    def setup_proxy_configuration(self, target_id: str, host: str, port: int, protocol: str) -> NoReturn:
-        """Configures proxy settings for a target.
-
-        Args:
-            target_id: The target identifier.
-            host: The proxy hostname.
-            port: The proxy port.
-            protocol: The proxy connection protocol.
-
-        """
-
-        config_data = {
-            'proxy': {
-                'protocol': protocol or 'http',
-                'address': host,
-                'port': port or 8080,
-                'enabled': True
-            }
-        }
-        data = json.dumps(config_data)
-        resp = self.__patch_request(path=f'targets/{target_id}/configuration', data=data)
-        if resp.status_code == 204:
-            timed_print('Proxy settings changed successfully.')
-        else:
-            timed_print(f'Proxy settings have not been changed. Something went wrong. {resp.text}')
-            exit(1)
-
-    def test_connection(self) -> NoReturn:
-        """Checking the connection to the Acunetix service. The service needs time to initialize.
-        Attempts to establish a connection every 10 seconds, the maximum number of attempts is 100.
-        """
-
-        counter: int = 0
-        while True:
-            timed_print(f'Trying to connect to the Acunetix service ({self.api_url})... ')
-            try:
-                self.__get_request('')
-            except requests.exceptions.ConnectionError as e:
-                counter += 1
-                if counter > 10:
-                    timed_print('Failed to connect to the Acunetix service.')
-                    raise e
-                # time.sleep(3)
-                continue
-            timed_print('The connection to the Acunetix service has been successfully established.')
-            break
+        return self._get_request(path=f'reports/download/{descriptor}')
