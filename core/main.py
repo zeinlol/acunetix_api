@@ -35,6 +35,7 @@ class Analyze:
         timed_print(f'The scan: {self.current_scan.scan_id} was created successfully. Wait for the scan to complete.')
         status = self.wait_for_finishing_scan()
         if status == AcunetixScanStatuses.COMPLETED.value:
+            timed_print('Checking reports...')
             report_generated = False
             iterations = 0
             while not report_generated:

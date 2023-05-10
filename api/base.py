@@ -112,17 +112,17 @@ class AcunetixAPI(AcunetixCoreAPI):
     @staticmethod
     def parse_scan(created_scan: dict) -> AcunetixScan:
         return AcunetixScan(
-            current_session=created_scan['current_session'],
+            current_session=created_scan.get('current_session', {}),
             profile_id=created_scan['profile_id'],
             scan_id=created_scan['scan_id'],
             target_id=created_scan['target_id'],
-            target=created_scan['target'],
+            target=created_scan.get('target', {}),
             report_template_id=created_scan['report_template_id'],
-            profile_name=created_scan['profile_name'],
-            next_run=created_scan['next_run'],
+            profile_name=created_scan.get('profile_name', ''),
+            next_run=created_scan.get('next_run', ''),
             max_scan_time=created_scan['max_scan_time'],
             incremental=created_scan['incremental'],
-            criticality=created_scan['criticality'],
+            criticality=created_scan.get('criticality', 10),
         )
 
     def get_reports(self) -> requests.Response:

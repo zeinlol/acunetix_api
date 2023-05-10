@@ -47,7 +47,7 @@ class AcunetixScan:
     @staticmethod
     def init_session(current_session: dict) -> AcunetixScanSession:
         return AcunetixScanSession(
-            status=current_session['status'],
+            status=current_session.get('status'),
             threat=current_session.get('threat'),
             progress=current_session.get('progress'),
             scan_session_id=current_session.get('scan_session_id'),
@@ -58,7 +58,7 @@ class AcunetixScan:
 
     def init_target(self, target: dict) -> AcunetixTarget:
         return AcunetixTarget(
-            address=target['address'],
+            address=target.get('address'),
             fqdn=target.get('fqdn'),
             domain=target.get('domain'),
             general_type=target.get('type', 'default') or 'default',  # can be None
