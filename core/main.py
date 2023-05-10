@@ -11,6 +11,7 @@ from core.tools import timed_print
 
 class Analyze:
     def __init__(self, address: str, api: AcunetixAPI, output_file: str, proxy: str | None = None):
+        self.current_scan = None
         self.address = address
         self.api = api
         self.target = self.init_target()
@@ -30,21 +31,9 @@ class Analyze:
                                            protocol=proxy.scheme)
 
     def run_scan_and_get_report(self) -> None:
-        self.api.run_scan(target_id=self.target.target_id)
-        scan = self.api.get_scans()
-        # TODO: rework for handling multiple scans
-        scan_id = scan.json()['scans'][0].get('scan_id')
-        timed_print(f'The scan: {scan_id} was created successfully. Wait for the scan to complete.')
-        while True:
-            scan = self.api.get_scan(scan_id=scan_id)
-            status = scan.json()['current_session'].get('status')
-            scan_status = status.title()
-            if status in FINAL_ACUNETIX_STATUSES:
-                timed_print(f'Scanning ended with status: {scan_status}.')
-                break
-            else:
-                timed_print(f'The current scan status is: {scan_status}.')
-            time.sleep(30)
+        self.current_scan = self.api.run_scan(target_id=self.target.target_id)
+        timed_print(f'The scan: {self.current_scan.scan_id} was created successfully. Wait for the scan to complete.')
+        status = self.wait_for_finishing_scan()
         if status == AcunetixScanStatuses.COMPLETED.value:
             report_generated = False
             iterations = 0
@@ -74,3 +63,15 @@ class Analyze:
         else:
             with open(self.output_file, 'w') as f:
                 json.dump({'failed': 'Target scan completed with status: Failed.'}, f, indent=4)
+
+    def wait_for_finishing_scan(self) -> AcunetixScanStatuses.value:
+        while True:
+            scan = self.api.get_scan(scan_id=self.current_scan.scan_id)
+            status = scan.current_session.status
+            if scan.current_session.status in FINAL_ACUNETIX_STATUSES:
+                timed_print(f'Scanning ended with status: {scan.current_session.status.title()}.')
+                break
+            else:
+                timed_print(f'The current scan status is: {scan.current_session.status.title()}.')
+            time.sleep(30)
+        return status

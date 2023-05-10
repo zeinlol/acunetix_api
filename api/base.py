@@ -3,7 +3,9 @@ from typing import NoReturn
 
 import requests
 
+from api.classes.scan import AcunetixScan
 from api.classes.target import AcunetixTarget
+from api import constants
 from api.core import AcunetixCoreAPI
 from core.tools import timed_print
 
@@ -40,7 +42,7 @@ class AcunetixAPI(AcunetixCoreAPI):
                         f'Info: {resp.text} Status code: {resp.status_code}. Content: {resp.content}')
             exit(1)
 
-    def create_target(self, address, **kwargs) -> AcunetixTarget:  # todo check valid?
+    def create_target(self, address, **kwargs) -> AcunetixTarget:
         """Create target for scanning process.
         Args:
             address: The target address [url, domain, etc.].
@@ -74,29 +76,27 @@ class AcunetixAPI(AcunetixCoreAPI):
         timed_print(f'Target {target} for the address: {address} has been successfully created.')
         return target
 
-    def run_scan(self, target_id: str, profile_id: str = None, **kwargs) -> requests.Response:
-        """Starts the scanning process.
-
-        Args:
-            target_id: The target identifier.
-            profile_id: The profile identifier displays in which mode the scan will be performed.
-                You can find identifiers here:
-                    http://wp.blkstone.me/wp-content/uploads/2019/11/Acunetix-API-Documentation.html#get-scans
-
-        """
-        template_id = kwargs.get('report_template_id') or '11111111-1111-1111-1111-111111111126'  # Comprehensive (new)
+    def run_scan(self,
+                 target_id: str,
+                 profile_id: str = constants.DEFAULT_PROFILE_ID,
+                 report_template_id: str = constants.DEFAULT_REPORT_TEMPLATE_ID,
+                 disable: bool = False,
+                 time_sensitive: bool = False,
+                 start_date: str = None, ) -> AcunetixScan:
         scan_data = {
             'target_id': target_id,
-            'profile_id': profile_id or '11111111-1111-1111-1111-111111111111',  # Full Scan
-            'report_template_id': template_id,
+            'profile_id': profile_id,
+            'report_template_id': report_template_id,
             'schedule': {
-                'disable': kwargs.get('disable') or False,
-                'start_date': kwargs.get('start_date'),  # can be None
-                'time_sensitive': kwargs.get('time_sensitive') or False
+                'disable': disable,
+                'start_date': start_date,
+                'time_sensitive': time_sensitive,
             }
         }
         data = json.dumps(scan_data)
-        return self._post_request(path='scans', data=data)
+        request = self._post_request(path='scans', data=data)
+        created_scan = request.json()
+        return self.parse_scan(created_scan=created_scan)
 
     def get_scans(self) -> requests.Response:
         """Get all available scans..
@@ -104,15 +104,26 @@ class AcunetixAPI(AcunetixCoreAPI):
 
         return self._get_request('scans')
 
-    def get_scan(self, scan_id: str) -> requests.Response:
-        """Get a specific scan.
+    def get_scan(self, scan_id: str) -> AcunetixScan:
+        request = self._get_request(f'scans/{scan_id}')
+        created_scan = request.json()
+        return self.parse_scan(created_scan=created_scan)
 
-        Args:
-            scan_id: The scan identifier.
-
-        """
-
-        return self._get_request(f'scans/{scan_id}')
+    @staticmethod
+    def parse_scan(created_scan: dict) -> AcunetixScan:
+        return AcunetixScan(
+            current_session=created_scan['current_session'],
+            profile_id=created_scan['profile_id'],
+            scan_id=created_scan['scan_id'],
+            target_id=created_scan['target_id'],
+            target=created_scan['target'],
+            report_template_id=created_scan['report_template_id'],
+            profile_name=created_scan['profile_name'],
+            next_run=created_scan['next_run'],
+            max_scan_time=created_scan['max_scan_time'],
+            incremental=created_scan['incremental'],
+            criticality=created_scan['criticality'],
+        )
 
     def get_reports(self) -> requests.Response:
         """Get all available reports..
