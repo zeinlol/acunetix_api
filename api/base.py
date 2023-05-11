@@ -3,9 +3,10 @@ from typing import NoReturn
 
 import requests
 
+from api import constants
+from api.classes.report import AcunetixReport
 from api.classes.scan import AcunetixScan
 from api.classes.target import AcunetixTarget
-from api import constants
 from api.core import AcunetixCoreAPI
 from core.tools import timed_print
 
@@ -125,11 +126,27 @@ class AcunetixAPI(AcunetixCoreAPI):
             criticality=created_scan.get('criticality', 10),
         )
 
-    def get_reports(self) -> requests.Response:
-        """Get all available reports..
-        """
-
-        return self._get_request('reports')
+    def get_reports(self, target_id: str = None) -> list[AcunetixReport]:
+        """Get all available reports..."""
+        path = 'reports'
+        if target_id:
+            path = f'{path}?target={target_id}'
+        timed_print(f'Get reports from {path}')
+        response = self._get_request(path=path)
+        timed_print(f'Get reports response {response.status_code}')
+        return [
+            AcunetixReport(
+                download=report['download'],
+                generation_date=report['generation_date'],
+                report_id=report['report_id'],
+                template_id=report['template_id'],
+                template_name=report['template_name'],
+                template_type=report['template_type'],
+                status=report['status'],
+                source=report['source'],
+            )
+            for report in response.json().get('reports')
+        ]
 
     def download_report(self, descriptor: str) -> requests.Response:
         """Configures proxy settings for a target.
@@ -138,4 +155,6 @@ class AcunetixAPI(AcunetixCoreAPI):
             descriptor: The report identifier.
 
         """
+
+        timed_print(f'Downloading report {descriptor}')
         return self._get_request(path=f'reports/download/{descriptor}')

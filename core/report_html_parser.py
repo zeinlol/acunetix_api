@@ -1,11 +1,9 @@
 import json
-from datetime import datetime
 from enum import Enum
-from typing import NoReturn
 
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
+
+from core.tools import timed_print
 
 
 class Severity(Enum):
@@ -13,20 +11,6 @@ class Severity(Enum):
     medium = 2
     low = 1
     informational = 0
-
-
-def timed_print(string: str) -> NoReturn:
-    print(f'{datetime.now()}: {string}')
-
-
-def get_page(file_absolute_path: str):
-    options = Options()
-    options.headless = True
-    driver = webdriver.Firefox(options=options, executable_path='geckodriver')
-    driver.get(url=f'file://{file_absolute_path}')
-    generated_html = driver.page_source
-    driver.quit()
-    return generated_html
 
 
 def get_scan_details(store: dict, soup: BeautifulSoup):
@@ -59,9 +43,12 @@ def get_vuln_entries(soup: BeautifulSoup):
 
 def get_vuln_urls(soup: BeautifulSoup):
     vuln_urls = []
-    vulns = soup.find('div', class_='vuln_urls').find_all('div', class_='vulnerability')
-    for vuln in vulns:
-        url = vuln.find('div', class_='url').find('div', {'data-innertext': 'url'}).text
+    vulnerabilities = soup.find('div', class_='vuln_urls').find_all('div', class_='vulnerability')
+    for vuln in vulnerabilities:
+        url = vuln.find('div', class_='url').find('div', {'data-innertext': 'url'})
+        if not url:
+            continue
+        url = url.text
         details = vuln.find('div', class_='details').text
         request = vuln.find('div', {'class': 'tab_content', 'data-tab-content': 'request'}).find('pre').text
         response = vuln.find('div', {'class': 'tab_content', 'data-tab-content': 'response'}).find('pre').text
@@ -102,19 +89,20 @@ def get_vuln_stats(store, soup):
     return store
 
 
-def parse(file_absolute_path: str):
+def parse_html(file_absolute_path: str, output_file):
+    timed_print(f'Starting parsing of {file_absolute_path}')
     store = {'audit_result': {
         'scan_metrics': {},
         'issues': [],
         'stats': {}
     }}
-    generated_html = get_page(file_absolute_path=file_absolute_path)
+    with open(file_absolute_path, 'r') as source_file:
+        soup = BeautifulSoup(source_file, 'lxml')
     timed_print('The generated report page was successfully received.')
-    soup = BeautifulSoup(generated_html, 'lxml')
     store = get_scan_details(store=store, soup=soup)
     timed_print('Parsing of general report data is complete.')
     store = get_vuln_instances(store=store, soup=soup)
     store = get_vuln_stats(store=store, soup=soup)
     timed_print('Completed parsing of vulnerability data from the report.')
-    with open('output.json', 'w') as f:
+    with open(output_file, 'w') as f:
         json.dump(store, f, indent=4)
