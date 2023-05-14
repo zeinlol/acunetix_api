@@ -1,23 +1,16 @@
-class AcunetixReportSource:
-    def __init__(self,
-                 list_type: str,
-                 description: str,
-                 id_list: list[str],):
-        self.list_type = list_type
-        self.description = description
-        self.id_list = id_list
+from api.classes.source import AcunetixSource
 
 
 class AcunetixReport:
     def __init__(self,
-                 download: list[str],
+                 download: list[str] | None,
                  generation_date: str,
                  report_id: str,
                  template_id: str,
                  template_name: str,
                  template_type: int,
                  status: str,
-                 source: dict,):
+                 source: dict, ):
         self.download = download
         self.generation_date = generation_date
         self.report_id = report_id
@@ -32,11 +25,18 @@ class AcunetixReport:
 
     @property
     def download_pdf(self) -> str:
-        return [link for link in self.download if link.endswith('pdf')][-1]
+        return self._download_link_name('pdf')
 
     @property
     def download_html(self) -> str:
-        return [link for link in self.download if link.endswith('html')][-1]
+        return self._download_link_name('html')
+
+    def _download_link_name(self, link_name: str) -> str:
+        return (
+            [link for link in self.download if link.endswith(link_name)][-1] or ''
+            if self.download
+            else ''
+        )
 
     @property
     def download_html_name(self) -> str:
@@ -47,9 +47,9 @@ class AcunetixReport:
         return self.download_pdf.split('/')[-1]
 
     @staticmethod
-    def init_source(source: dict) -> AcunetixReportSource:
-        return AcunetixReportSource(
+    def init_source(source: dict) -> AcunetixSource:
+        return AcunetixSource(
             list_type=source['list_type'],
-            description=source['description'],
+            description=source.get('description', ''),
             id_list=source['id_list'],
         )

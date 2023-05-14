@@ -4,6 +4,7 @@ from typing import NoReturn
 import requests
 
 from api import constants
+from api.classes.export import AcunetixExportReport
 from api.classes.report import AcunetixReport
 from api.classes.scan import AcunetixScan
 from api.classes.target import AcunetixTarget
@@ -130,7 +131,7 @@ class AcunetixAPI(AcunetixCoreAPI):
         """Get all available reports..."""
         path = 'reports'
         if target_id:
-            path = f'{path}?target={target_id}'
+            path = f'{path}?q=target_id={target_id}'
         timed_print(f'Get reports from {path}')
         response = self._get_request(path=path)
         timed_print(f'Get reports response {response.status_code}')
@@ -158,3 +159,34 @@ class AcunetixAPI(AcunetixCoreAPI):
 
         timed_print(f'Downloading report {descriptor}')
         return self._get_request(path=f'reports/download/{descriptor}')
+
+    def run_scan_export(self, scan_id: str, export_id: str) -> AcunetixExportReport:
+        data = {
+            "export_id": export_id,
+            "source": {
+                "id_list": [
+                    scan_id
+                ],
+                "list_type": "scan_result"
+            }
+        }
+        export = self._post_request(path='exports', data=data)
+        return self.parse_export(created_export=export.json())
+
+    def get_export(self, export_id: str) -> AcunetixExportReport:
+        request = self._get_request(f'exports/{export_id}')
+        created_export = request.json()
+        return self.parse_export(created_export=created_export)
+
+    @staticmethod
+    def parse_export(created_export: dict) -> AcunetixExportReport:
+        return AcunetixExportReport(
+            download=created_export['download'],
+            generation_date=created_export['generation_date'],
+            report_id=created_export['report_id'],
+            template_id=created_export['template_id'],
+            template_name=created_export['template_name'],
+            template_type=created_export['template_type'],
+            status=created_export['status'],
+            source=created_export['source'],
+        )
