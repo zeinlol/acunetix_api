@@ -130,24 +130,15 @@ class AcunetixAPI(AcunetixCoreAPI):
     def get_reports(self, target_id: str = None) -> list[AcunetixReport]:
         """Get all available reports..."""
         path = 'reports'
-        if target_id:
-            path = f'{path}?q=target_id={target_id}'
-        timed_print(f'Get reports from {path}')
         response = self._get_request(path=path)
-        timed_print(f'Get reports response {response.status_code}')
-        return [
-            AcunetixReport(
-                download=report['download'],
-                generation_date=report['generation_date'],
-                report_id=report['report_id'],
-                template_id=report['template_id'],
-                template_name=report['template_name'],
-                template_type=report['template_type'],
-                status=report['status'],
-                source=report['source'],
-            )
+        # timed_print(f'Get reports response {response.status_code}')
+        reports = [
+            self.parse_report(created_report=report)
             for report in response.json().get('reports')
         ]
+        if target_id:
+            return list(filter(lambda report: (target_id in report.source.id_list), reports))
+        return reports
 
     def download_report(self, descriptor: str) -> requests.Response:
         """Configures proxy settings for a target.
@@ -170,13 +161,34 @@ class AcunetixAPI(AcunetixCoreAPI):
                 "list_type": "scan_result"
             }
         }
+        data = json.dumps(data)
         export = self._post_request(path='exports', data=data)
+        # timed_print(export.json())
         return self.parse_export(created_export=export.json())
 
     def get_export(self, export_id: str) -> AcunetixExportReport:
         request = self._get_request(f'exports/{export_id}')
         created_export = request.json()
         return self.parse_export(created_export=created_export)
+
+    def run_scan_report(self, scan_id: str, template_id: str) -> AcunetixReport:
+        data = {
+            "template_id": template_id,
+            "source": {
+                "id_list": [
+                    scan_id
+                ],
+                "list_type": "scan_result"
+            }
+        }
+        data = json.dumps(data)
+        export = self._post_request(path='reports', data=data)
+        # timed_print(export.json())
+        return self.parse_report(created_report=export.json())
+
+    def get_report(self, report_id: str) -> AcunetixReport:
+        request = self._get_request(f'reports/{report_id}')
+        return self.parse_report(created_report=request.json())
 
     @staticmethod
     def parse_export(created_export: dict) -> AcunetixExportReport:
@@ -188,5 +200,18 @@ class AcunetixAPI(AcunetixCoreAPI):
             template_name=created_export['template_name'],
             template_type=created_export['template_type'],
             status=created_export['status'],
-            source=created_export['source'],
+            source=created_export.get('source', []),
+        )
+    
+    @staticmethod
+    def parse_report(created_report: dict) -> AcunetixReport:
+        return AcunetixReport(
+            download=created_report['download'],
+            generation_date=created_report['generation_date'],
+            report_id=created_report['report_id'],
+            template_id=created_report['template_id'],
+            template_name=created_report['template_name'],
+            template_type=created_report['template_type'],
+            status=created_report['status'],
+            source=created_report.get('source', []),
         )

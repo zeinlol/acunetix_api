@@ -4,9 +4,10 @@ from urllib.parse import urlparse
 
 from api.base import AcunetixAPI
 from api.classes.export import AcunetixExportReport
+from api.classes.scan import AcunetixScan
 from api.classes.scan_status import FINAL_ACUNETIX_STATUSES, AcunetixScanStatuses
 from api.classes.target import AcunetixTarget
-from api.constants import ExportTypes
+from api.constants import ExportTypes, ReportTemplateIds
 from core import report_html_parser
 from core.tools import timed_print
 
@@ -40,11 +41,15 @@ class Analyze:
         if status != AcunetixScanStatuses.COMPLETED.value:
             self.exit_with_error(message=f'Target scan was not competed and finished with status: {status}.')
         timed_print('Checking reports...')
-        self.scan_report = self.api.run_scan_export(scan_id=self.current_scan.scan_id, export_id=ExportTypes.JSON.value)
-        report_status = self.wait_for_finishing_report()
-        if report_status != AcunetixScanStatuses.COMPLETED.value:
-            self.exit_with_error(message=f'Scan was completed successfully, but export finished with status: {status}.')
-        self.download_report(report_name=self.scan_report.download_json_name, output_file=self.output_file)
+        # self.scan_report = self.api.run_scan_report(scan_id=self.current_scan.current_session.scan_session_id,
+        #                                             template_id=ReportTemplateIds.COMPREHENSIVE.value)
+        self.work_with_report_for_targets()
+        self.scan_report = self.api.run_scan_export(scan_id=self.current_scan.current_session.scan_session_id,
+                                                    export_id=ExportTypes.JSON.value)
+        # report_status = self.wait_for_finishing_report()
+        # if report_status != AcunetixScanStatuses.COMPLETED.value:
+        #     self.exit_with_error(message=f'Scan was completed successfully, but export finished with status: {status}.')
+        # self.download_report(report_name=self.scan_report.download_json_name, output_file=self.output_file)
         # self.work_with_report_for_targets()
         timed_print('Exiting...')
         exit(0)
@@ -63,7 +68,7 @@ class Analyze:
                 break
             else:
                 timed_print(f'The current scan status is: {scan.current_session.status.title()}.')
-            time.sleep(30)
+            time.sleep(10)
         return scan.current_session.status
 
     def wait_for_finishing_report(self) -> "AcunetixScanStatuses.value":
@@ -74,7 +79,7 @@ class Analyze:
                 break
             else:
                 timed_print(f'The current export status is: {report.status.title()}.')
-            time.sleep(30)
+            time.sleep(10)
         return report.status
 
     def download_report(self, report_name: str, output_file: str):
@@ -87,14 +92,15 @@ class Analyze:
     def work_with_report_for_targets(self):
         report_generated = False
         while not report_generated:
-            reports = self.api.get_reports(target_id=self.target.target_id)
+            reports = self.api.get_reports(target_id=self.current_scan.current_session.scan_session_id)
             timed_print(f'Reports received. Amount of valid reports: {len(reports)}')
             if not reports:
                 timed_print('No reports. Wait for generation')
                 time.sleep(10)
                 continue
             report = reports[-1]  # get only one report
-            if report.status != AcunetixScanStatuses.PROCESSING.value:
+            # report = self.api.get_report(report_id=self.scan_report.report_id)
+            if report.status == AcunetixScanStatuses.PROCESSING.value:
                 timed_print('Report is still generating. Wait for competing')
                 time.sleep(10)
                 continue

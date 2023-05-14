@@ -5,6 +5,7 @@ class AcunetixScanStatuses(enum.Enum):
     COMPLETED = 'completed'
     FAILED = 'failed'
     SCHEDULED = 'scheduled'
+    QUEUED = 'queued'
     PROCESSING = 'processing'
 
 

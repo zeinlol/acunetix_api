@@ -19,6 +19,18 @@ class AcunetixCoreAPI:
         self.s = self._init_session()
 
     @property
+    def headers_json(self) -> dict:
+        return {
+            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:85.0) Gecko/20100101 Firefox/85.0',
+            'Accept': "application/json, text/plain, */*",
+            'Accept-Language': "es-AR,es;q=0.8,en-US;q=0.5,en;q=0.3",
+            'Accept-Encoding': "gzip, deflate, br",
+            'Connection': "keep-alive",
+            'Content-type': 'application/json',
+            'cache-control': "no-cache",
+        }
+
+    @property
     def is_logged(self) -> bool:
         return self._get_request('me').status_code == 200
 
@@ -47,18 +59,9 @@ class AcunetixCoreAPI:
         return session
 
     def _login(self) -> NoReturn:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:85.0) Gecko/20100101 Firefox/85.0',
-            'Accept': "application/json, text/plain, */*",
-            'Accept-Language': "es-AR,es;q=0.8,en-US;q=0.5,en;q=0.3",
-            'Accept-Encoding': "gzip, deflate, br",
-            'Connection': "keep-alive",
-            'Content-type': 'application/json',
-            'cache-control': "no-cache",
-        }
-        self._update_session(headers=headers)
-        resp = self._post_request(path='me/login', data=self.auth_data)
-        self._update_session(headers=resp.headers, cookies=resp.cookies)
+        self._update_session(headers=self.headers_json)
+        response = self._post_request(path='me/login', data=self.auth_data)
+        self._update_session(headers=response.headers, cookies=response.cookies)
 
     def _update_session(self, headers=None, cookies=None) -> NoReturn:
         if headers:
