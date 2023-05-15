@@ -29,6 +29,7 @@ class TargetMixin:
             timed_print(f'Fail to create target for the address: {address}.\n'
                         f'Info: {request.text} Status code: {request.status_code}. Content: {request.content}'
                         f'\nExit')
+            self.close_session()
             exit(1)
         target = self.parse_target(target_dict=request.json())
         timed_print(f'Target {target} for the address: {address} has been successfully created.')
@@ -51,3 +52,6 @@ class TargetMixin:
             description=target_dict.get('description', ''),
             criticality=target_dict.get('criticality', 10),
         )
+
+    def delete_target(self: "AcunetixAPI", target: AcunetixTarget):
+        self._delete_request(path=f'targets/{target.target_id}')

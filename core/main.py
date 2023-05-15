@@ -8,7 +8,6 @@ from api.classes.report import AcunetixReport
 from api.classes.scan import AcunetixScan
 from api.classes.scan_status import FINAL_ACUNETIX_STATUSES, AcunetixScanStatuses
 from api.classes.target import AcunetixTarget
-from api.constants import ExportTypes
 from core import report_html_parser
 from core.tools import timed_print
 
@@ -53,21 +52,20 @@ class Analyze:
         if status != AcunetixScanStatuses.COMPLETED.value:
             self.exit_with_error(message=f'Target scan was not competed and finished with status: {status}.')
         timed_print('Checking reports...')
-        # self.work_with_report_for_targets()
-        self.scan_report = self.api.run_scan_export(scan_id=self.current_scan.current_session.scan_session_id,
-                                                    export_id=ExportTypes.JSON.value)
-        report_status = self.wait_for_finishing_report()
-        if report_status != AcunetixScanStatuses.COMPLETED.value:
-            self.exit_with_error(message=f'Scan was completed , but export finished with status: {status}.')
-        self.download_report(report_name=self.scan_report.download_json_name, output_file=self.output_file)
-        timed_print('Exiting...')
-        exit(0)
+        self.work_with_report_for_targets()
+        # self.scan_report = self.api.run_scan_export(scan_id=self.current_scan.current_session.scan_session_id,
+        #                                             export_id=ExportTypes.JSON.value)
+        # report_status = self.wait_for_finishing_report()
+        # if report_status != AcunetixScanStatuses.COMPLETED.value:
+        #     self.exit_with_error(message=f'Scan was completed , but export finished with status: {status}.')
+        # self.download_report(report_name=self.scan_report.download_json_name, output_file=self.output_file)
+        self.remove_current_data()
+        self.exit_application(message='Exiting...')
 
     def exit_with_error(self, message: str):
         with open(self.output_file, 'w') as f:
             json.dump({'failed': message}, f, indent=4)
-        timed_print(message)
-        exit(1)
+        self.exit_application(exit_code=1, message=message)
 
     def wait_for_finishing_scan(self) -> "AcunetixScanStatuses.value":
         while True:
@@ -146,4 +144,20 @@ class Analyze:
         return True
 
     def remove_old_data(self, targets: list[AcunetixTarget], reports: list[AcunetixReport]) -> None:
+        for target in targets:
+            self.api.delete_target(target=target)
+        for report in reports:
+            self.api.delete_report(report=report)
+        timed_print('All previous data was removed')
         return
+
+    def remove_current_data(self):
+        self.api.delete_target(target=self.target)
+        if self.scan_report:
+            self.api.delete_report(report=self.scan_report)
+        timed_print('Current data removed')
+
+    def exit_application(self, exit_code: int = 0, message: str = 'Exiting application'):
+        self.api.close_session()
+        timed_print(message)
+        exit(exit_code)

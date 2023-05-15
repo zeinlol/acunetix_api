@@ -16,7 +16,7 @@ class AcunetixCoreAPI:
         self.host = host
         self.port = port
         self.secure = secure
-        self.s = self._init_session()
+        self.session = self._init_session()
 
     @property
     def headers_json(self) -> dict:
@@ -65,18 +65,21 @@ class AcunetixCoreAPI:
 
     def _update_session(self, headers=None, cookies=None) -> NoReturn:
         if headers:
-            self.s.headers.update(headers)
+            self.session.headers.update(headers)
         if cookies:
-            self.s.cookies.update(cookies)
+            self.session.cookies.update(cookies)
 
     def _get_request(self, path: str) -> requests.Response:
-        return self.s.get(f'{self.api_url}{path}')
+        return self.session.get(f'{self.api_url}{path}')
 
     def _post_request(self, path: str, data) -> requests.Response:
-        return self.s.post(f'{self.api_url}{path}', data=data)
+        return self.session.post(f'{self.api_url}{path}', data=data)
 
     def _patch_request(self, path: str, data) -> requests.Response:
-        return self.s.patch(f'{self.api_url}{path}', data=data)
+        return self.session.patch(f'{self.api_url}{path}', data=data)
+
+    def _delete_request(self, path: str) -> requests.Response:
+        return self.session.delete(f'{self.api_url}{path}')
 
     def setup_proxy_configuration(self, target_id: str, host: str, port: int, protocol: str) -> NoReturn:
         """Configures proxy settings for a target.
@@ -124,3 +127,6 @@ class AcunetixCoreAPI:
                 continue
             timed_print('The connection to the Acunetix service has been successfully established.')
             break
+
+    def close_session(self):
+        self.session.close()

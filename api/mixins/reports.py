@@ -66,3 +66,6 @@ class ReportMixin:
             status=created_report['status'],
             source=created_report.get('source', []),
         )
+
+    def delete_report(self: "AcunetixAPI", report: AcunetixReport):
+        self._delete_request(path=f'reports/{report.report_id}')
