@@ -2,6 +2,8 @@ import json
 from enum import Enum
 
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
 
 from core.tools import timed_print
 
@@ -11,6 +13,16 @@ class Severity(Enum):
     medium = 2
     low = 1
     informational = 0
+
+
+def get_page(file_absolute_path: str):
+    options = Options()
+    options.add_argument('-headless')
+    driver = webdriver.Firefox(options=options, executable_path='geckodriver')
+    driver.get(url=f'file://{file_absolute_path}')
+    generated_html = driver.page_source
+    driver.quit()
+    return generated_html
 
 
 def get_scan_details(store: dict, soup: BeautifulSoup):
@@ -45,7 +57,8 @@ def get_vuln_urls(soup: BeautifulSoup):
     vuln_urls = []
     vulnerabilities = soup.find('div', class_='vuln_urls').find_all('div', class_='vulnerability')
     for vuln in vulnerabilities:
-        url = vuln.find('div', class_='url').find('div', {'data-innertext': 'url'})
+        # url = vuln.find('div', class_='url').find('div', {'data-innertext': 'url'})
+        url = vuln.find('div', class_='url').find('span', {'data-innertext': 'url'})
         if not url:
             continue
         url = url.text
@@ -96,8 +109,12 @@ def parse_html(file_absolute_path: str, output_file):
         'issues': [],
         'stats': {}
     }}
-    with open(file_absolute_path, 'r') as source_file:
-        soup = BeautifulSoup(source_file, 'lxml')
+    # need to open in browser for generating data through js scripts
+    generated_html = get_page(file_absolute_path=file_absolute_path)
+    soup = BeautifulSoup(generated_html, 'html.parser')
+    # # soup = BeautifulSoup(generated_html, 'lxml')
+    # with open(file_absolute_path, 'r') as source_file:
+    #     soup = BeautifulSoup(source_file, 'html.parser')
     timed_print('The generated report page was successfully received.')
     store = get_scan_details(store=store, soup=soup)
     timed_print('Parsing of general report data is complete.')
@@ -106,3 +123,9 @@ def parse_html(file_absolute_path: str, output_file):
     timed_print('Completed parsing of vulnerability data from the report.')
     with open(output_file, 'w') as f:
         json.dump(store, f, indent=4)
+
+
+if __name__ == '__main__':
+    file = '/home/nick/PycharmProjects/cryeye/acunetix_api/output.html'
+    output = 'test.json'
+    parse_html(file_absolute_path=file, output_file=output)
