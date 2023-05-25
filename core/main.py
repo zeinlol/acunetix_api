@@ -158,6 +158,7 @@ class Analyze:
         timed_print('Current data removed')
 
     def exit_application(self, exit_code: int = 0, message: str = 'Exiting application'):
+        self.remove_current_data()
         self.api.close_session()
         timed_print(message)
         exit(exit_code)
