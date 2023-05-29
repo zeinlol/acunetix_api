@@ -28,7 +28,8 @@ def get_page(file_absolute_path: str):
 def get_scan_details(store: dict, soup: BeautifulSoup):
     table = soup.find('table', class_='panel-table')
     table2 = soup.find('table', class_='panel-table-2')
-
+    if not table or table2:
+        return store
     store['audit_result']['scan_metrics'].update({
         'target': table.find('a', {'data-innertext': 'target_url'}).get('href'),
         'duration': table.find('td', {'data-innertext': 'duration'}).text,
@@ -57,7 +58,6 @@ def get_vuln_urls(soup: BeautifulSoup):
     vuln_urls = []
     vulnerabilities = soup.find('div', class_='vuln_urls').find_all('div', class_='vulnerability')
     for vuln in vulnerabilities:
-        # url = vuln.find('div', class_='url').find('div', {'data-innertext': 'url'})
         url = vuln.find('div', class_='url').find('span', {'data-innertext': 'url'})
         if not url:
             continue
@@ -81,7 +81,11 @@ def get_vuln_urls(soup: BeautifulSoup):
 def get_vuln_instances(store: dict, soup: BeautifulSoup):
     issues = []
     vuln_entries = get_vuln_entries(soup=soup)
-    vuln_entries_details = soup.find('div', {'id': 'section_vuln_details'}).find_all('div', class_='vuln_type')
+    section_vuln_details = soup.find('div', {'id': 'section_vuln_details'})
+    if not section_vuln_details:
+        return store
+    vuln_entries_details = section_vuln_details.find_all('div', class_='vuln_type')
+    # add handler
     for vuln_entry, vuln_entry_details in zip(vuln_entries, vuln_entries_details):
         vuln_urls = get_vuln_urls(soup=vuln_entry_details)
         for vuln_url in vuln_urls:
@@ -96,8 +100,11 @@ def get_vuln_stats(store, soup):
     stats = soup.find('div', {
         'class': 'row center-xs middle-xs',
         'data-template': 'stat_severity_counts'
-    }).find_all('span')
-    for stat, level in zip(stats, levels):
+    })
+    if not stats:
+        return store
+    statistic = stats.find_all('span')
+    for stat, level in zip(statistic, levels):
         store['audit_result']['stats'].update({f'{level}': stat.text})
     return store
 

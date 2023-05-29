@@ -59,7 +59,6 @@ class Analyze:
         # if report_status != AcunetixScanStatuses.COMPLETED.value:
         #     self.exit_with_error(message=f'Scan was completed , but export finished with status: {status}.')
         # self.download_report(report_name=self.scan_report.download_json_name, output_file=self.output_file)
-        self.remove_current_data()
         self.exit_application(message='Exiting...')
 
     def exit_with_error(self, message: str):
