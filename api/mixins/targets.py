@@ -1,4 +1,5 @@
 import json
+import time
 from typing import TYPE_CHECKING
 
 from api.classes.target import AcunetixTarget
@@ -24,14 +25,25 @@ class TargetMixin:
             'criticality': kwargs.get('criticality') or 10  # integer
         }
         data = json.dumps(target_data)
-        request = self._post_request(path='targets', data=data)
-        if request.status_code != 201:
-            timed_print(f'Fail to create target for the address: {address}.\n'
-                        f'Info: {request.text} Status code: {request.status_code}. Content: {request.content}'
-                        f'\nExit')
-            self.close_session()
-            exit(1)
-        target = self.parse_target(target_dict=request.json())
+        if self.is_use_fake_client:
+            while True:
+                response = self._post_request(path='targets', data=data)
+                if target_id := response.json().get('target_id', None):
+                    timed_print(f'[Fake Client] Target already added. Target ID: {target_id}')
+                    return self.get_target(target_id=target_id)
+                queue_order = response.json().get('order', None)
+                if not queue_order or queue_order > 0:
+                    timed_print(f'[Fake Client] Target is in queue. Order: {queue_order}')
+                    time.sleep(30)
+        else:
+            response = self._post_request(path='targets', data=data)
+            if response.status_code != 201:
+                timed_print(f'Fail to create target for the address: {address}.\n'
+                            f'Info: {response.text} Status code: {response.status_code}. Content: {response.content}'
+                            f'\nExit')
+                self.close_session()
+                exit(1)
+        target = self.parse_target(target_dict=response.json())
         timed_print(f'Target {target} for the address: {address} has been successfully created.')
         return target
 
@@ -39,6 +51,10 @@ class TargetMixin:
         response = self._get_request(path='targets')
         targets = response.json().get('targets', [])
         return [self.parse_target(target_dict=target) for target in targets]
+
+    def get_target(self: "AcunetixAPI", target_id: str) -> AcunetixTarget:
+        response = self._get_request(path=f'targets/{target_id}')
+        return self.parse_target(target_dict=response.json())
 
     @staticmethod
     def parse_target(target_dict: dict) -> AcunetixTarget:

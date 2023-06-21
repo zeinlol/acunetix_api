@@ -68,4 +68,6 @@ class ReportMixin:
         )
 
     def delete_report(self: "AcunetixAPI", report: AcunetixReport):
+        if self.is_use_fake_client:
+            return
         self._delete_request(path=f'reports/{report.report_id}')

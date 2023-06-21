@@ -21,7 +21,8 @@ class AcunetixAPI(AcunetixCoreAPI,
         super().__init__(username=username, password=password, host=host, port=port, secure=secure)
         self.test_connection()
         self._login()
-        self.update_profile()
+        if not self.is_use_fake_client:
+            self.update_profile()
 
     def update_profile(self) -> NoReturn:
         user_data = {
@@ -40,7 +41,7 @@ class AcunetixAPI(AcunetixCoreAPI,
         }
         data = json.dumps(user_data)
         resp = self._patch_request(path='me', data=data)
-        if resp.status_code == 204:
+        if resp.status_code in [200, 204]:
             timed_print('User profile changed successfully. The current language is: English.')
         else:
             timed_print('User profile settings have not been changed. Something went wrong.\n'

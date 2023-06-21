@@ -26,12 +26,14 @@ class Analyze:
             self.init_proxy(proxy)
 
     def init_target(self) -> AcunetixTarget:
-        if self.demo_mode:
+        if self.api.is_use_fake_client:
+            timed_print('Api works with fake client. Skip checking other targets.')
+        elif self.demo_mode:
             all_finished = False
             while not all_finished:
                 timed_print('Demo mode is turned on. Checking if all tasks completed...')
                 all_finished = self.wait_for_all_scans_are_finished()
-                timed_print(f'Demo mode is turned on. Current scan is {"not" if all_finished else ""} allowed')
+                timed_print(f'Demo mode is turned on. Current scan is{"" if all_finished else " not"} allowed')
                 if not all_finished:
                     time.sleep(4 * 60)  # sleep 4 minutes
             timed_print('Demo mode is turned on. All previous tasks completed. Start usual scan.')
@@ -113,7 +115,8 @@ class Analyze:
                 time.sleep(10)
                 continue
             if report.status != AcunetixScanStatuses.COMPLETED.value:
-                self.exit_with_error(message='Error while generating report.')
+                self.exit_with_error(message='Error while generating report. '
+                                             f'API response of report status: {report.status}.')
             report_generated = True
             self.download_report(report_name=report.download_html_name, output_file=report.download_html_name)
             report_html_parser.parse_html(file_absolute_path=report.download_html_name, output_file=self.output_file)
@@ -138,7 +141,8 @@ class Analyze:
                 return False
         timed_print(f'{title} All reports generated. '
                     f'Wait a while remove old data')
-        time.sleep(4*60)
+        time.sleep(10)
+        # time.sleep(4*60)
         self.remove_old_data(targets=targets, reports=reports)  # scans automatically removes with targets
         return True
 

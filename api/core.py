@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 from typing import NoReturn
@@ -16,7 +17,10 @@ class AcunetixCoreAPI:
         self.host = host
         self.port = port
         self.secure = secure
+        self._protocol = 'https'
         self.session = self._init_session()
+        self._fake_client: bool = False
+        self._fake_uuid: str | None = None
 
     @property
     def headers_json(self) -> dict:
@@ -32,15 +36,18 @@ class AcunetixCoreAPI:
 
     @property
     def is_logged(self) -> bool:
-        return self._get_request('me').status_code == 200
+        return self._get_request('me').status_code in [200, 204]
 
     @property
     def api_url(self) -> str:
-        return f'https://{self.host}:{self.port}/api/v1/'
+        return f'{self._protocol}://{self.host}:{self.port}/api/v1/'
 
     @property
     def hash_password(self) -> str:
         return hashlib.sha256(self.password.encode()).hexdigest()
+    @property
+    def is_use_fake_client(self) -> bool:
+        return self._fake_client
 
     @property
     def auth_data(self) -> str:
@@ -61,6 +68,10 @@ class AcunetixCoreAPI:
     def _login(self) -> NoReturn:
         self._update_session(headers=self.headers_json)
         response = self._post_request(path='me/login', data=self.auth_data)
+        with contextlib.suppress(json.decoder.JSONDecodeError):
+            if response.json().get('is_fake_client'):
+                self._fake_client = True
+                self._fake_uuid = response.json().get('watcher_uuid')
         self._update_session(headers=response.headers, cookies=response.cookies)
 
     def _update_session(self, headers=None, cookies=None) -> NoReturn:
@@ -70,16 +81,28 @@ class AcunetixCoreAPI:
             self.session.cookies.update(cookies)
 
     def _get_request(self, path: str) -> requests.Response:
-        return self.session.get(f'{self.api_url}{path}')
+        path = f'{self.api_url}{path}'
+        if self.is_use_fake_client:
+            path += f'?watcher_uuid={self._fake_uuid}'
+        return self.session.get(path)
 
     def _post_request(self, path: str, data) -> requests.Response:
-        return self.session.post(f'{self.api_url}{path}', data=data)
+        path = f'{self.api_url}{path}'
+        if self.is_use_fake_client:
+            path += f'?watcher_uuid={self._fake_uuid}'
+        return self.session.post(path, data=data)
 
     def _patch_request(self, path: str, data) -> requests.Response:
-        return self.session.patch(f'{self.api_url}{path}', data=data)
+        path = f'{self.api_url}{path}'
+        if self.is_use_fake_client:
+            path += f'?watcher_uuid={self._fake_uuid}'
+        return self.session.patch(path, data=data)
 
     def _delete_request(self, path: str) -> requests.Response:
-        return self.session.delete(f'{self.api_url}{path}')
+        path = f'{self.api_url}{path}'
+        if self.is_use_fake_client:
+            path += f'?watcher_uuid={self._fake_uuid}'
+        return self.session.delete(path)
 
     def setup_proxy_configuration(self, target_id: str, host: str, port: int, protocol: str) -> NoReturn:
         """Configures proxy settings for a target.
@@ -118,6 +141,10 @@ class AcunetixCoreAPI:
             timed_print(f'Trying to connect to the Acunetix service ({self.api_url})... ')
             try:
                 self._get_request('')
+            except requests.exceptions.SSLError:
+                timed_print('SSL error. Changing protocol...')
+                self._protocol = 'http' if self._protocol == 'https' else 'https'
+                timed_print(f'New protocol: {self._protocol}')
             except requests.exceptions.ConnectionError as e:
                 counter += 1
                 if counter > 10:

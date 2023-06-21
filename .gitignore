@@ -48,3 +48,5 @@ env.bak/
 venv.bak/
 
 .idea/*
+geckodriver.log
+*.json
