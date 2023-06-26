@@ -50,8 +50,8 @@ class Analyze:
     def run_scan_and_get_report(self) -> None:
         self.current_scan = self.api.run_scan(target_id=self.target.target_id)
         timed_print(f'The scan: {self.current_scan.scan_id} was created successfully. Wait for the scan to complete.')
-        status = self.wait_for_finishing_scan()
-        if status != AcunetixScanStatuses.COMPLETED.value:
+        self.current_scan = self.wait_for_finishing_scan()
+        if self.current_scan.current_session.status != AcunetixScanStatuses.COMPLETED.value:
             self.exit_with_error(message=f'Target scan was not competed and finished with status: {status}.')
         timed_print('Checking reports...')
         self.work_with_report_for_targets()
@@ -68,7 +68,7 @@ class Analyze:
             json.dump({'failed': message}, f, indent=4)
         self.exit_application(exit_code=1, message=message)
 
-    def wait_for_finishing_scan(self) -> "AcunetixScanStatuses.value":
+    def wait_for_finishing_scan(self) -> AcunetixScan:
         while True:
             scan = self.api.get_scan(scan_id=self.current_scan.scan_id)
             if scan.current_session.status in FINAL_ACUNETIX_STATUSES:
@@ -77,7 +77,7 @@ class Analyze:
             else:
                 timed_print(f'The current scan status is: {scan.current_session.status.title()}.')
             time.sleep(10)
-        return scan.current_session.status
+        return scan
 
     def wait_for_finishing_report(self) -> "AcunetixScanStatuses.value":
         while True:
@@ -135,7 +135,7 @@ class Analyze:
                 return False
         timed_print(f'{title} All scans are finished. Checking reports')
         reports = self.api.get_reports()
-        for report in self.api.get_reports():
+        for report in reports:
             if report.status not in FINAL_ACUNETIX_STATUSES:
                 timed_print(f'{title} Some reports are still running.')
                 return False
