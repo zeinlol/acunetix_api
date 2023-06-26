@@ -110,7 +110,7 @@ class Analyze:
                 continue
             report = reports[-1]  # get only one report
             # report = self.api.get_report(report_id=self.scan_report.report_id)
-            if report.status == AcunetixScanStatuses.PROCESSING.value:
+            if report.status in [AcunetixScanStatuses.PROCESSING.value, AcunetixScanStatuses.QUEUED.value]:
                 timed_print('Report is still generating. Wait for competing')
                 time.sleep(10)
                 continue
